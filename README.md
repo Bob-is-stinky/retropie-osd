@@ -19,14 +19,14 @@ A lightweight on-screen display (OSD) for RetroPie that shows current time and b
 Run this single command on your Raspberry Pi:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/YOUR_USERNAME/retropie-osd/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/Bob-is-stinky/retropie-osd/main/install.sh | bash
 ```
 
 ## Manual Installation
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/YOUR_USERNAME/retropie-osd.git
+git clone https://github.com/Bob-is-stinky/retropie-osd.git
 cd retropie-osd
 ```
 
