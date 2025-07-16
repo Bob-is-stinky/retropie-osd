@@ -1,0 +1,173 @@
+#!/bin/bash
+
+# RetroPie OSD Control Script
+# Provides easy control of the RetroPie OSD service
+
+SERVICE_NAME="retropie-osd"
+SCRIPT_NAME="$(basename "$0")"
+
+# Color codes
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+print_usage() {
+    echo "Usage: $SCRIPT_NAME {start|stop|restart|status|enable|disable|logs|test}"
+    echo ""
+    echo "Commands:"
+    echo "  start    - Start the RetroPie OSD service"
+    echo "  stop     - Stop the RetroPie OSD service"
+    echo "  restart  - Restart the RetroPie OSD service"
+    echo "  status   - Show service status"
+    echo "  enable   - Enable auto-start on boot"
+    echo "  disable  - Disable auto-start on boot"
+    echo "  logs     - Show service logs (live)"
+    echo "  test     - Test OSD functionality"
+    echo ""
+}
+
+print_status() {
+    echo -e "${GREEN}[INFO]${NC} $1"
+}
+
+print_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
+print_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+check_service_exists() {
+    if ! systemctl list-unit-files | grep -q "^$SERVICE_NAME.service"; then
+        print_error "Service $SERVICE_NAME.service not found!"
+        print_error "Please run the installation script first."
+        exit 1
+    fi
+}
+
+test_functionality() {
+    print_status "Testing RetroPie OSD functionality..."
+    
+    # Check if binary exists
+    if [ ! -x "/usr/local/bin/retropie-osd" ]; then
+        print_error "RetroPie OSD binary not found at /usr/local/bin/retropie-osd"
+        return 1
+    fi
+    
+    # Check X11 display
+    if [ -z "$DISPLAY" ]; then
+        print_warning "DISPLAY environment variable not set"
+        export DISPLAY=:0
+    fi
+    
+    # Check if X11 is accessible
+    if ! xwininfo -root >/dev/null 2>&1; then
+        print_error "Cannot access X11 display. Make sure X11 is running."
+        return 1
+    fi
+    
+    # Check I2C
+    if [ -e "/dev/i2c-1" ]; then
+        print_status "I2C interface found"
+        if groups "$USER" | grep -q "i2c"; then
+            print_status "User is in i2c group"
+        else
+            print_warning "User is not in i2c group - battery detection may not work"
+        fi
+    else
+        print_warning "I2C interface not found - battery detection will not work"
+    fi
+    
+    # Check for Pi Sugar
+    if command -v i2cdetect >/dev/null 2>&1; then
+        if i2cdetect -y 1 2>/dev/null | grep -q "57"; then
+            print_status "Pi Sugar device detected at address 0x57"
+        else
+            print_warning "Pi Sugar device not detected - will show 'AC' instead of battery"
+        fi
+    fi
+    
+    # Check if EmulationStation is running
+    if pgrep emulationstation >/dev/null; then
+        print_status "EmulationStation is running - OSD should be visible"
+    else
+        print_warning "EmulationStation is not running - OSD will be hidden"
+    fi
+    
+    print_status "Test completed"
+}
+
+case "$1" in
+    start)
+        check_service_exists
+        print_status "Starting RetroPie OSD..."
+        if sudo systemctl start "$SERVICE_NAME"; then
+            print_status "Service started successfully"
+        else
+            print_error "Failed to start service"
+            exit 1
+        fi
+        ;;
+    stop)
+        check_service_exists
+        print_status "Stopping RetroPie OSD..."
+        if sudo systemctl stop "$SERVICE_NAME"; then
+            print_status "Service stopped successfully"
+        else
+            print_error "Failed to stop service"
+            exit 1
+        fi
+        ;;
+    restart)
+        check_service_exists
+        print_status "Restarting RetroPie OSD..."
+        if sudo systemctl restart "$SERVICE_NAME"; then
+            print_status "Service restarted successfully"
+        else
+            print_error "Failed to restart service"
+            exit 1
+        fi
+        ;;
+    status)
+        check_service_exists
+        echo -e "${BLUE}RetroPie OSD Service Status:${NC}"
+        sudo systemctl status "$SERVICE_NAME" --no-pager
+        ;;
+    enable)
+        check_service_exists
+        print_status "Enabling RetroPie OSD to start on boot..."
+        if sudo systemctl enable "$SERVICE_NAME"; then
+            print_status "Service enabled successfully"
+        else
+            print_error "Failed to enable service"
+            exit 1
+        fi
+        ;;
+    disable)
+        check_service_exists
+        print_status "Disabling RetroPie OSD from starting on boot..."
+        if sudo systemctl disable "$SERVICE_NAME"; then
+            print_status "Service disabled successfully"
+        else
+            print_error "Failed to disable service"
+            exit 1
+        fi
+        ;;
+    logs)
+        check_service_exists
+        print_status "Showing RetroPie OSD logs (Press Ctrl+C to exit)..."
+        sudo journalctl -u "$SERVICE_NAME" -f
+        ;;
+    test)
+        test_functionality
+        ;;
+    *)
+        print_usage
+        exit 1
+        ;;
+esac
+
+exit 0
